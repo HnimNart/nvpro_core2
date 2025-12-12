@@ -39,7 +39,7 @@ endif()
 # Make find_package find scripts in this directory.
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}")
 
-# Built samples will be written to ${NVPRO_CORE2_OUTPUT_DIR}/_bin, and
+# Built samples will be written to ${NVPRO_CORE2_OUTPUT_DIR}/bin, and
 # packaged/installed samples will be written to
 # ${NVPRO_CORE2_OUTPUT_DIR}/_include.
 # Samples should leave this at its default for consistency, but metaprojects
@@ -48,7 +48,7 @@ if(NOT NVPRO_CORE2_OUTPUT_DIR)
   set(NVPRO_CORE2_OUTPUT_DIR ${CMAKE_SOURCE_DIR})
 endif()
 if(NOT NVPRO_CORE2_DOWNLOAD_DIR)
-  set(NVPRO_CORE2_DOWNLOAD_DIR ${CMAKE_SOURCE_DIR}/_downloaded_resources)
+  set(NVPRO_CORE2_DOWNLOAD_DIR ${NVPRO_CORE2_OUTPUT_DIR}/downloaded_resources)
 endif()
 if (NOT NVPRO_CORE2_DOWNLOAD_SITE)
   set(NVPRO_CORE2_DOWNLOAD_SITE http://developer.download.nvidia.com/ProGraphics/nvpro-samples)
@@ -76,10 +76,11 @@ endif()
 # Set the output directory for executables
 if(GENERATOR_IS_MULTI_CONFIG)
   # CMake appends the build config for us
-  set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${NVPRO_CORE2_OUTPUT_DIR}/_bin)
+  set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${NVPRO_CORE2_OUTPUT_DIR}/bin)
 else()
   # Manually append config, e.g. for Linux Makefiles
-  set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${NVPRO_CORE2_OUTPUT_DIR}/_bin/${CMAKE_BUILD_TYPE})
+  # set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${NVPRO_CORE2_OUTPUT_DIR}/bin/${CMAKE_BUILD_TYPE})
+  set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${NVPRO_CORE2_OUTPUT_DIR}/bin)
 endif()
 
 # Add nvpro_core.
@@ -94,4 +95,3 @@ include(DownloadPackage)
 include(CompilerGlslShader)
 include(CompilerSlangShader)
 include(Utilities)
-
