@@ -40,6 +40,7 @@ public:
 
   void init(nvvk::ResourceAllocator* alloc, std::span<const uint32_t> spirv)
   {
+
     m_device = alloc->getDevice();
 
     // Binding layout
@@ -105,7 +106,7 @@ public:
                   const glm::mat4&             viewMatrix,
                   const glm::mat4&             projMatrix,
                   const SkyParams&             skyParam,
-                  const VkDescriptorImageInfo& ioImage)
+                  const VkDescriptorImageInfo& ioImage) const
   {
     NVVK_DBG_SCOPE(cmd);  // <-- Helps to debug in NSight
 

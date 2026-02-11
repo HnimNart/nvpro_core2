@@ -198,6 +198,12 @@ public:
   // Fitting the camera position and interest to see the bounding box
   void fit(const glm::vec3& boxMin, const glm::vec3& boxMax, bool instantFit = true, bool tight = false, float aspect = 1.0f);
 
+  // Returns true if the camera has moved since the last call to setClean()
+  bool isDirty() const { return m_lastSync != m_current; }
+
+  // Call this after you've handled the camera change (e.g., reset path tracer)
+  void setClean() { m_lastSync = m_current; }
+
 private:
   // Update the internal matrix.
   void updateLookatMatrix() { m_matrix = glm::lookAt(m_current.eye, m_current.ctr, m_current.up); }
@@ -215,12 +221,14 @@ private:
   glm::vec3 computeBezier(float t, glm::vec3& p0, glm::vec3& p1, glm::vec3& p2);
   void      findBezierPoints();
 
+
 protected:
   glm::mat4 m_matrix = glm::mat4(1);
 
   Camera m_current;   // Current camera position
   Camera m_goal;      // Wish camera position
   Camera m_snapshot;  // Current camera the moment a set look-at is done
+  Camera m_lastSync;  // To track the state used for the last render frame
 
   // Animation
   std::array<glm::vec3, 3> m_bezier    = {};

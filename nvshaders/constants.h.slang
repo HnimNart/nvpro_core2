@@ -57,6 +57,11 @@ static const float M_1_PI = 0.3183098861837F;  // 1/PI
 static const float INFINITE = 1e32F;
 #endif
 
+
+#ifndef SCENE_EPSILON
+static const float EPSILON = 1e-4f;
+#endif
+
 // Special PDF value returned by `bsdfSample()` to represent an infinite impulse or singularity.
 #ifndef DIRAC
 static const float DIRAC = -1.0F;
