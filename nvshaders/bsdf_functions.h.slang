@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2025, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2019-2026, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * SPDX-FileCopyrightText: Copyright (c) 2019-2025, NVIDIA CORPORATION.
+ * SPDX-FileCopyrightText: Copyright (c) 2019-2026, NVIDIA CORPORATION.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -115,6 +115,80 @@ and a V-cavity shadowing-masking function).
 float3 absorptionCoefficient(PbrMaterial mat)
 {
   return -log(max(mat.attenuationColor, float3(0.001))) / max(mat.attenuationDistance, 0.001);
+}
+
+/*-------------------------------------------------------------------------------------------------
+# Function `henyeyGreenstein`
+> Henyey-Greenstein phase function for volumetric scattering.
+
+Parameters:
+- cosTheta: cosine of the angle between incident and scattered directions
+- g: anisotropy parameter in (-1, 1). g > 0 = forward scatter, g < 0 = back scatter, g = 0 = isotropic
+Returns the phase function value (probability density).
+Ref: https://www.pbr-book.org/4ed/Volume_Scattering/Phase_Functions#TheHenyeyndashGreensteinPhaseFunction
+-------------------------------------------------------------------------------------------------*/
+float henyeyGreenstein(float cosTheta, float g)
+{
+  float g2    = g * g;
+  float denom = 1.0 + g2 - 2.0 * g * cosTheta;
+  return M_1_PI * 0.25 * (1.0 - g2) / (denom * sqrt(denom));
+}
+
+/*-------------------------------------------------------------------------------------------------
+# Function `sampleHenyeyGreenstein`
+> Samples a direction from the Henyey-Greenstein phase function distribution.
+
+Parameters:
+- xi: two random numbers in [0,1]
+- g: anisotropy parameter in (-1, 1)
+- wi: normalized incident direction (the direction light/ray is traveling)
+
+Returns the sampled scattered direction.
+For forward scattering (g > 0), result tends to align with wi (continue forward).
+For back scattering (g < 0), result tends to point opposite to wi (bounce back).
+Ref: https://www.pbr-book.org/4ed/Volume_Scattering/Phase_Functions#TheHenyeyndashGreensteinPhaseFunction
+-------------------------------------------------------------------------------------------------*/
+float3 sampleHenyeyGreenstein(float2 xi, float g, float3 wi)
+{
+  float cosTheta;
+  if(abs(g) < 0.001)
+  {
+    // Isotropic scattering
+    cosTheta = 1.0 - 2.0 * xi.x;
+  }
+  else
+  {
+    float t  = (1.0 - g * g) / (1.0 - g + 2.0 * g * xi.x);
+    cosTheta = (1.0 + g * g - t * t) / (2.0 * g);
+  }
+
+  float sinTheta = sqrt(max(0.0, 1.0 - cosTheta * cosTheta));
+  float phi      = 2.0 * M_PI * xi.y;
+
+  // Build orthonormal basis around wi (the direction light is traveling)
+  // For forward scattering (g > 0), result will be close to wi
+  float3 u, v;
+  orthonormalBasis(wi, u, v);
+
+  // Convert spherical to Cartesian in the local frame
+  return sinTheta * cos(phi) * u + sinTheta * sin(phi) * v + cosTheta * wi;
+}
+
+/*-------------------------------------------------------------------------------------------------
+# Function `henyeyGreensteinPdf`
+> Returns the PDF for sampling a direction using the Henyey-Greenstein phase function.
+
+This is the same as henyeyGreenstein() since sampleHenyeyGreenstein() does perfect sampling and 
+henyeyGreenstein() is already normalized.
+-------------------------------------------------------------------------------------------------*/
+float henyeyGreensteinPdf(float cosTheta, float g)
+{
+  float pdf = henyeyGreenstein(cosTheta, g);
+  // Near |g| = 1, HG approaches a delta distribution;
+  // catch numerical edge cases (0, NaN, inf) to avoid division by zero or NaN.
+  if(pdf == 0.0f || isnan(pdf) || isinf(pdf))
+    pdf = DIRAC;
+  return pdf;
 }
 
 /*-------------------------------------------------------------------------------------------------
@@ -271,7 +345,7 @@ void brdf_diffuse_eval(NVSHADERS_INOUT_TYPE(BsdfEvaluateData) data, PbrMaterial 
   // Note that the state normals have been flipped to the ray side by the caller.
   // Include edge-on (== 0.0f) as "no light" case.
   const float nk2 = dot(data.k2, mat.N);
-  if(nk2 <= 0.0f) // if (backside)
+  if(nk2 <= 0.0f)  // if (backside)
   {
     return;  // absorb
   }
@@ -331,7 +405,7 @@ void brdf_diffuse_transmission_sample(NVSHADERS_INOUT_TYPE(BsdfSampleData) data,
 
   // Ensure energy conservation by considering the diffuse transmission tint.
   data.bsdf_over_pdf = tint * mat.diffuseTransmissionColor;
-  data.event_type = BSDF_EVENT_DIFFUSE_TRANSMISSION;
+  data.event_type    = BSDF_EVENT_DIFFUSE_TRANSMISSION;
 }
 
 
@@ -583,13 +657,13 @@ void btdf_ggx_smith_eval(NVSHADERS_INOUT_TYPE(BsdfEvaluateData) data, PbrMateria
   }
 
   const float nk1 = abs(dot(data.k1, mat.N));
-  float nk2       = dot(data.k2, mat.N);
+  float       nk2 = dot(data.k2, mat.N);
 
   // BRDF or BTDF eval?
   // If the incoming light direction is on the backface.
   // Do NOT include edge-on (== 0.0f) as backside here to take the reflection path.
   const bool backside = (nk2 < 0.0f);
-  nk2 = abs(nk2);
+  nk2                 = abs(nk2);
 
   const float3 h = compute_half_vector(data.k1, data.k2, mat.N, ior, nk2, backside, isThinWalled);
 

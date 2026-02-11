@@ -1,6 +1,6 @@
 
 /*
- * Copyright (c) 2024-2025, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2024-2026, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * SPDX-FileCopyrightText: Copyright (c) 2024-2025 NVIDIA CORPORATION
+ * SPDX-FileCopyrightText: Copyright (c) 2024-2026 NVIDIA CORPORATION
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -102,6 +102,31 @@ void tinygltf::utils::setVolume(tinygltf::Material& tmat, const KHR_materials_vo
   tinygltf::utils::setValue(ext, "thicknessTexture", volume.thicknessTexture);
   tinygltf::utils::setValue(ext, "attenuationDistance", volume.attenuationDistance);
   tinygltf::utils::setArrayValue(ext, "attenuationColor", 3, glm::value_ptr(volume.attenuationColor));
+}
+
+KHR_materials_volume_scatter tinygltf::utils::getVolumeScatter(const tinygltf::Material& tmat)
+{
+  KHR_materials_volume_scatter gmat;
+  if(tinygltf::utils::hasElementName(tmat.extensions, KHR_MATERIALS_VOLUME_SCATTER_EXTENSION_NAME))
+  {
+    const tinygltf::Value& ext = tinygltf::utils::getElementValue(tmat.extensions, KHR_MATERIALS_VOLUME_SCATTER_EXTENSION_NAME);
+    tinygltf::utils::getArrayValue(ext, "multiscatterColor", gmat.multiscatterColor);
+    tinygltf::utils::getValue(ext, "scatterAnisotropy", gmat.scatterAnisotropy);
+    gmat.scatterAnisotropy = std::clamp(gmat.scatterAnisotropy, -0.999f, 0.999f);
+  }
+  return gmat;
+}
+
+void tinygltf::utils::setVolumeScatter(tinygltf::Material& tmat, const KHR_materials_volume_scatter& scatter)
+{
+  if(!tinygltf::utils::hasElementName(tmat.extensions, KHR_MATERIALS_VOLUME_SCATTER_EXTENSION_NAME))
+  {
+    tmat.extensions[KHR_MATERIALS_VOLUME_SCATTER_EXTENSION_NAME] = tinygltf::Value(tinygltf::Value::Object());
+  }
+
+  tinygltf::Value& ext = tmat.extensions[KHR_MATERIALS_VOLUME_SCATTER_EXTENSION_NAME];
+  tinygltf::utils::setArrayValue(ext, "multiscatterColor", 3, glm::value_ptr(scatter.multiscatterColor));
+  tinygltf::utils::setValue(ext, "scatterAnisotropy", scatter.scatterAnisotropy);
 }
 
 KHR_materials_unlit tinygltf::utils::getUnlit(const tinygltf::Material& tmat)
@@ -545,11 +570,37 @@ void tinygltf::utils::getNodeTRS(const tinygltf::Node& node, glm::vec3& translat
   }
 }
 
+// -------------------------------------------------------------------------------------------------
+// Set the TRS components of a node
+// If a component is equal to the default value, it is cleared from the node
 void tinygltf::utils::setNodeTRS(tinygltf::Node& node, const glm::vec3& translation, const glm::quat& rotation, const glm::vec3& scale)
 {
-  node.translation = {translation.x, translation.y, translation.z};
-  node.rotation    = {rotation.x, rotation.y, rotation.z, rotation.w};
-  node.scale       = {scale.x, scale.y, scale.z};
+  if(translation != glm::vec3(0.0f, 0.0f, 0.0f))
+  {
+    node.translation = {translation.x, translation.y, translation.z};
+  }
+  else
+  {
+    node.translation.clear();
+  }
+
+  if(rotation != glm::quat(1.0f, 0.0f, 0.0f, 0.0f))
+  {
+    node.rotation = {rotation.x, rotation.y, rotation.z, rotation.w};
+  }
+  else
+  {
+    node.rotation.clear();
+  }
+
+  if(scale != glm::vec3(1.0f, 1.0f, 1.0f))
+  {
+    node.scale = {scale.x, scale.y, scale.z};
+  }
+  else
+  {
+    node.scale.clear();
+  }
 }
 
 glm::mat4 tinygltf::utils::getNodeMatrix(const tinygltf::Node& node)
@@ -633,16 +684,22 @@ int tinygltf::utils::getTextureImageIndex(const tinygltf::Texture& texture)
 {
   int source_image = texture.source;
 
-  // MSFT_texture_dds: if the texture is a DDS file, we need to get the source image from the extension
+  // If the image uses one of the WebP, DDS, or KTX extensions, we need to get
+  // the source image from the extension.
+  // glTF doesn't specify what happens if multiple of these extensions exist;
+  // for now, we arbitrarily prefer KTX.
+  if(hasElementName(texture.extensions, EXT_TEXTURE_WEBP_EXTENSION_NAME))
+  {
+    const tinygltf::Value& ext = getElementValue(texture.extensions, EXT_TEXTURE_WEBP_EXTENSION_NAME);
+    getValue(ext, "source", source_image);
+  }
+
   if(hasElementName(texture.extensions, MSFT_TEXTURE_DDS_NAME))
   {
     const tinygltf::Value& ext = getElementValue(texture.extensions, MSFT_TEXTURE_DDS_NAME);
     getValue(ext, "source", source_image);
   }
 
-  // KHR_texture_basisu: if the texture has this extension, we need to get the source image from that extension.
-  // glTF doesn't specify what happens if both KHR_texture_basisu and MSFT_texture_dds exist;
-  // for now, we arbitrarily prefer the KTX source.
   if(hasElementName(texture.extensions, KHR_TEXTURE_BASISU_EXTENSION_NAME))
   {
     const tinygltf::Value& ext = getElementValue(texture.extensions, KHR_TEXTURE_BASISU_EXTENSION_NAME);

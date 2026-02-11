@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+* Copyright (c) 2025-2026, NVIDIA CORPORATION.  All rights reserved.
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *
-* SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION.
+* SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION.
 * SPDX-License-Identifier: Apache-2.0
 */
 
@@ -114,7 +114,7 @@ void ParameterParser::printHelp() const
       flags += ", -" + parameter->info.shortName;
 
     std::stringstream sstr;
-    sstr << std::left << std::setw(maxFlagLength) << flags;
+    sstr << std::left << std::setw(maxFlagLength + 1) << flags;
 
 
     std::string help = parameter->getTypeString();
@@ -142,14 +142,7 @@ void ParameterParser::printHelp() const
       {
         Logger::getInstance().log(Logger::eINFO, "%s\n", sstr.str().c_str());
         sstr = std::stringstream();
-        if(maxFlagLength > 0)
-        {
-          sstr << std::left << std::setw(static_cast<std::streamsize>(maxFlagLength) - 1) << " ";
-        }
-        else
-        {
-          sstr << " ";
-        }
+        sstr << std::left << std::setw(maxFlagLength) << " ";
         lineWidth = 0;
       }
     }
@@ -265,7 +258,8 @@ size_t ParameterParser::parse(std::span<const char* const> args,
       // argCount is exclusive of keyword
       if(argsLeft > parameter.argCount)
       {
-        bool success = true;
+        bool success     = true;
+        bool checkQuotes = false;
 
         switch(parameter.type)
         {
@@ -333,11 +327,14 @@ size_t ParameterParser::parse(std::span<const char* const> args,
             break;
           case ParameterBase::Type::STRING:
             *parameter.destination.string = args[1 + a];
+            checkQuotes                   = true;
             break;
           case ParameterBase::Type::FILENAME:
             *parameter.destination.filename = getFilename(filenameBasePath, args[1 + a]);
+            checkQuotes                     = true;
             break;
           case ParameterBase::Type::CUSTOM:
+            checkQuotes = true;
             if(parameter.argCount)
             {
               success = parameter.callbackCustom(&parameter, std::span<const char* const>(&args[1 + a], parameter.argCount),
@@ -364,7 +361,8 @@ size_t ParameterParser::parse(std::span<const char* const> args,
                                     uint32_t(a + parameter.argCount), parameter.info.name.c_str());
           for(uint32_t i = 0; i < parameter.argCount; i++)
           {
-            Logger::getInstance().log(Logger::eINFO, " %s", args[i + 1 + a]);
+            bool needQuotes = checkQuotes && strchr(args[i + 1 + a], ' ') != nullptr;
+            Logger::getInstance().log(Logger::eINFO, needQuotes ? " \"%s\"" : " %s", args[i + 1 + a]);
           }
           Logger::getInstance().log(Logger::eINFO, "\n");
         }
@@ -413,8 +411,8 @@ size_t ParameterParser::parse(std::span<const char* const> args,
         {
           if(success)
           {
-            Logger::getInstance().log(Logger::eINFO, "parser: %2d-%2d: --%s", uint32_t(a), uint32_t(a),
-                                      parameter->info.name.c_str());
+            Logger::getInstance().log(Logger::eINFO, "parser: %2d-%2d: --%s \"%s\"\n", uint32_t(a), uint32_t(a),
+                                      parameter->info.name.c_str(), arg.c_str());
           }
           else
           {
